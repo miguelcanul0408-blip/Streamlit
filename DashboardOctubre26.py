@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
 
 st.set_page_config(page_title="Dashboard de Clientes y Productos", layout="wide")
 
@@ -31,7 +32,12 @@ try:
     df_filtrado = df[df['Category'].isin(categoria_seleccionada)]
 
     # Pestañas
-    tab1, tab2, tab3 = st.tabs(["👥 Análisis de Clientes", "📦 Rendimiento de Productos", "💸 Impacto de Descuentos"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "👥 Análisis de Clientes",
+        "📦 Rendimiento de Productos",
+        "💸 Impacto de Descuentos",
+        "🗺️ Ventas por Estado"
+    ])
 
     with tab1:
         st.header("Análisis de los Mejores Clientes")
@@ -48,7 +54,7 @@ try:
             st.subheader("Top 10 Clientes por Ganancia")
             top_clientes_profit = df_filtrado.groupby('Customer Name')['Profit'].sum().reset_index().sort_values(by='Profit', ascending=False).head(10)
             fig2, ax2 = plt.subplots()
-            sns.barplot(data=top_clientes_profit, x='Profit', y='Customer Name', palette='Greens_r', ax=fig2.gca())
+            sns.barplot(data=top_clientes_profit, x='Profit', y='Customer Name', palette='Greens_r', ax=ax2.gca())
             st.pyplot(fig2)
 
     with tab2:
@@ -123,6 +129,56 @@ try:
             sns.lineplot(data=discount_profit, x='Discount', y='Profit', marker='o', color='red', ax=ax6)
             ax6.set_ylabel("Ganancia Promedio ($)")
             st.pyplot(fig6)
+
+    with tab4:
+        st.header("Ventas por estado")
+        st.markdown("El color de cada estado representa el total de ventas. El mapa respeta el filtro de categorías seleccionado en el panel lateral.")
+
+        # Convertir nombres completos de estados a códigos postales, requeridos por el mapa de EE. UU.
+        estados_us = {
+            'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+            'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+            'District of Columbia': 'DC', 'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI',
+            'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+            'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+            'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+            'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+            'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+            'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+            'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+            'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+            'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+            'Wisconsin': 'WI', 'Wyoming': 'WY'
+        }
+        codigos_validos = set(estados_us.values())
+        estado_a_codigo = {nombre.lower(): codigo for nombre, codigo in estados_us.items()}
+        estado_a_codigo.update({codigo.lower(): codigo for codigo in codigos_validos})
+
+        if 'State' not in df_filtrado.columns:
+            st.error("No se encontró la columna 'State' en el archivo de ventas.")
+        elif df_filtrado.empty:
+            st.info("Selecciona al menos una categoría para ver las ventas por estado.")
+        else:
+            ventas_estado = df_filtrado[['State', 'Sales']].dropna().copy()
+            ventas_estado['State Code'] = ventas_estado['State'].astype(str).str.strip().str.lower().map(estado_a_codigo)
+            ventas_estado = ventas_estado.dropna(subset=['State Code'])
+            ventas_estado = ventas_estado.groupby('State Code', as_index=False)['Sales'].sum()
+
+            if ventas_estado.empty:
+                st.warning("No se encontraron estados reconocidos. Verifica los valores de la columna 'State'.")
+            else:
+                mapa_ventas = px.choropleth(
+                    ventas_estado,
+                    locations='State Code',
+                    locationmode='USA-states',
+                    color='Sales',
+                    scope='usa',
+                    color_continuous_scale='Blues',
+                    labels={'Sales': 'Ventas ($)', 'State Code': 'Estado'},
+                    title='Ventas totales por estado'
+                )
+                mapa_ventas.update_layout(margin={'r': 0, 't': 50, 'l': 0, 'b': 0})
+                st.plotly_chart(mapa_ventas, use_container_width=True)
 
 except Exception as e:
     st.error(f"Error al procesar el dashboard: {e}")
