@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
 
 st.set_page_config(page_title="Análisis de Ventas y Ganancias", layout="wide")
 
@@ -82,7 +83,13 @@ try:
 
     # Sección 4: Filtro Interactivo por Región para Estados
     st.header("📍 Análisis Detallado por Estado")
-    region_seleccionada = st.selectbox("Selecciona una Región para ver el detalle de sus Estados:", df_ventas['Region'].unique(), index=list(df_ventas['Region'].unique()).index('West') if 'West' in df_ventas['Region'].unique() else 0)
+    regiones = df_ventas['Region'].dropna().unique().tolist()
+    region_inicial = regiones.index('West') if 'West' in regiones else 0
+    region_seleccionada = st.selectbox(
+        "Selecciona una Región para ver el detalle de sus Estados:",
+        regiones,
+        index=region_inicial
+    )
     
     df_filtrado = df_ventas[df_ventas['Region'] == region_seleccionada]
     
@@ -104,6 +111,53 @@ try:
         plt.xticks(rotation=45)
         st.pyplot(fig7)
 
+    # Mapa coroplético: se agrega aquí porque App.py es el punto de entrada habitual de Streamlit.
+    st.header("🗺️ Mapa de ventas por estado")
+    st.caption("El color representa las ventas totales por estado. Pasa el cursor sobre un estado para ver su importe.")
+
+    estados_us = {
+        'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+        'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+        'District of Columbia': 'DC', 'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI',
+        'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+        'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+        'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+        'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+        'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+        'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+        'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+        'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+        'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+        'Wisconsin': 'WI', 'Wyoming': 'WY'
+    }
+    state_lookup = {name.casefold(): code for name, code in estados_us.items()}
+    state_lookup.update({code.casefold(): code for code in estados_us.values()})
+
+    if 'State' not in df_ventas.columns or 'Sales' not in df_ventas.columns:
+        st.error("No se puede crear el mapa: faltan las columnas 'State' o 'Sales' en los datos.")
+    else:
+        datos_mapa = df_ventas[['State', 'Sales']].dropna().copy()
+        datos_mapa['State Code'] = datos_mapa['State'].astype(str).str.strip().str.casefold().map(state_lookup)
+        datos_mapa['Sales'] = pd.to_numeric(datos_mapa['Sales'], errors='coerce')
+        datos_mapa = datos_mapa.dropna(subset=['State Code', 'Sales'])
+        datos_mapa = datos_mapa.groupby('State Code', as_index=False)['Sales'].sum()
+
+        if datos_mapa.empty:
+            st.warning("No se encontraron estados reconocidos. La columna 'State' debe tener nombres de estados de EE. UU. o códigos postales de dos letras.")
+        else:
+            mapa = px.choropleth(
+                datos_mapa,
+                locations='State Code',
+                locationmode='USA-states',
+                color='Sales',
+                scope='usa',
+                color_continuous_scale='Blues',
+                labels={'Sales': 'Ventas ($)', 'State Code': 'Estado'},
+                hover_data={'State Code': True, 'Sales': ':$,.2f'},
+                title='Ventas totales por estado'
+            )
+            mapa.update_layout(margin={'r': 0, 't': 45, 'l': 0, 'b': 0})
+            st.plotly_chart(mapa, use_container_width=True)
+
 except Exception as e:
-    st.error(f"Error al cargar el archivo de Excel: {e}")
-    st.info("Asegúrate de tener montado Google Drive y que la ruta del archivo sea la correcta.")
+    st.error(f"Error al cargar o mostrar el análisis: {e}")
