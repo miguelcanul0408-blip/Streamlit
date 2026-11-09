@@ -54,7 +54,7 @@ try:
             st.subheader("Top 10 Clientes por Ganancia")
             top_clientes_profit = df_filtrado.groupby('Customer Name')['Profit'].sum().reset_index().sort_values(by='Profit', ascending=False).head(10)
             fig2, ax2 = plt.subplots()
-            sns.barplot(data=top_clientes_profit, x='Profit', y='Customer Name', palette='Greens_r', ax=ax2.gca())
+            sns.barplot(data=top_clientes_profit, x='Profit', y='Customer Name', palette='Greens_r', ax=ax2())
             st.pyplot(fig2)
 
     with tab2:
