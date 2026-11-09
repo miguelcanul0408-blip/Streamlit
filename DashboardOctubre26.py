@@ -132,9 +132,8 @@ try:
 
     with tab4:
         st.header("Ventas por estado")
-        st.markdown("El color de cada estado representa el total de ventas. El mapa respeta el filtro de categorías seleccionado en el panel lateral.")
+        st.markdown("El color indica las ventas totales de cada estado y se actualiza al cambiar el filtro de categorías.")
 
-        # Convertir nombres completos de estados a códigos postales, requeridos por el mapa de EE. UU.
         estados_us = {
             'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
             'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
@@ -150,35 +149,44 @@ try:
             'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
             'Wisconsin': 'WI', 'Wyoming': 'WY'
         }
-        codigos_validos = set(estados_us.values())
-        estado_a_codigo = {nombre.lower(): codigo for nombre, codigo in estados_us.items()}
-        estado_a_codigo.update({codigo.lower(): codigo for codigo in codigos_validos})
+        nombre_a_codigo = {nombre.casefold(): codigo for nombre, codigo in estados_us.items()}
+        codigo_a_codigo = {codigo.casefold(): codigo for codigo in estados_us.values()}
+        estado_a_codigo = {**nombre_a_codigo, **codigo_a_codigo}
 
-        if 'State' not in df_filtrado.columns:
-            st.error("No se encontró la columna 'State' en el archivo de ventas.")
-        elif df_filtrado.empty:
-            st.info("Selecciona al menos una categoría para ver las ventas por estado.")
+        if df_filtrado.empty:
+            st.info("Selecciona al menos una categoría para ver el mapa.")
+        elif 'State' not in df_filtrado.columns or 'Sales' not in df_filtrado.columns:
+            st.error("El archivo debe incluir las columnas 'State' y 'Sales' para mostrar el mapa.")
         else:
             ventas_estado = df_filtrado[['State', 'Sales']].dropna().copy()
-            ventas_estado['State Code'] = ventas_estado['State'].astype(str).str.strip().str.lower().map(estado_a_codigo)
-            ventas_estado = ventas_estado.dropna(subset=['State Code'])
+            ventas_estado['State Code'] = (
+                ventas_estado['State'].astype(str).str.strip().str.casefold().map(estado_a_codigo)
+            )
+            ventas_estado['Sales'] = pd.to_numeric(ventas_estado['Sales'], errors='coerce')
+            ventas_estado = ventas_estado.dropna(subset=['State Code', 'Sales'])
             ventas_estado = ventas_estado.groupby('State Code', as_index=False)['Sales'].sum()
 
             if ventas_estado.empty:
-                st.warning("No se encontraron estados reconocidos. Verifica los valores de la columna 'State'.")
+                st.warning("No se reconocieron estados para dibujar. La columna 'State' debe contener nombres de estados de EE. UU. o códigos como CA y TX.")
             else:
-                mapa_ventas = px.choropleth(
-                    ventas_estado,
-                    locations='State Code',
-                    locationmode='USA-states',
-                    color='Sales',
-                    scope='usa',
-                    color_continuous_scale='Blues',
-                    labels={'Sales': 'Ventas ($)', 'State Code': 'Estado'},
-                    title='Ventas totales por estado'
-                )
-                mapa_ventas.update_layout(margin={'r': 0, 't': 50, 'l': 0, 'b': 0})
-                st.plotly_chart(mapa_ventas, use_container_width=True)
+                try:
+                    mapa_ventas = px.choropleth(
+                        ventas_estado,
+                        locations='State Code',
+                        locationmode='USA-states',
+                        color='Sales',
+                        scope='usa',
+                        color_continuous_scale='Blues',
+                        labels={'Sales': 'Ventas ($)', 'State Code': 'Estado'},
+                        title='Ventas totales por estado'
+                    )
+                    mapa_ventas.update_layout(
+                        margin={'r': 0, 't': 50, 'l': 0, 'b': 0},
+                        coloraxis_colorbar_title='Ventas ($)'
+                    )
+                    st.plotly_chart(mapa_ventas, use_container_width=True)
+                except Exception as error_mapa:
+                    st.error(f"No se pudo generar el mapa. Verifica que Plotly esté instalado y actualizado: {error_mapa}")
 
 except Exception as e:
     st.error(f"Error al procesar el dashboard: {e}")
