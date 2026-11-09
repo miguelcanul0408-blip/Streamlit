@@ -154,9 +154,9 @@ try:
         estado_a_codigo = {**nombre_a_codigo, **codigo_a_codigo}
 
         if df_filtrado.empty:
-            st.info("Selecciona al menos una categoría para ver el mapa.")
+            st.info("Selecciona al menos una categoría para ver el mapa y las ventas por estado.")
         elif 'State' not in df_filtrado.columns or 'Sales' not in df_filtrado.columns:
-            st.error("El archivo debe incluir las columnas 'State' y 'Sales' para mostrar el mapa.")
+            st.error("El archivo debe incluir las columnas 'State' y 'Sales' para mostrar el mapa y las ventas por estado.")
         else:
             ventas_estado = df_filtrado[['State', 'Sales']].dropna().copy()
             ventas_estado['State Code'] = (
@@ -185,8 +185,32 @@ try:
                         coloraxis_colorbar_title='Ventas ($)'
                     )
                     st.plotly_chart(mapa_ventas, use_container_width=True)
+
+                    st.subheader("Top 10 estados con más ventas")
+                    top_10_estados = ventas_estado.nlargest(10, 'Sales').sort_values('Sales', ascending=True)
+                    grafica_top_estados = px.bar(
+                        top_10_estados,
+                        x='Sales',
+                        y='State Code',
+                        orientation='h',
+                        labels={'Sales': 'Ventas ($)', 'State Code': 'Estado'},
+                        text='Sales',
+                        title='Top 10 estados por ventas totales'
+                    )
+                    grafica_top_estados.update_traces(
+                        marker_color='#2563eb',
+                        texttemplate='$%{x:,.2f}',
+                        textposition='outside',
+                        cliponaxis=False
+                    )
+                    grafica_top_estados.update_layout(
+                        yaxis={'categoryorder': 'total ascending'},
+                        xaxis={'tickprefix': '$', 'tickformat': ',.0f'},
+                        margin={'r': 30, 't': 50, 'l': 0, 'b': 0}
+                    )
+                    st.plotly_chart(grafica_top_estados, use_container_width=True)
                 except Exception as error_mapa:
-                    st.error(f"No se pudo generar el mapa. Verifica que Plotly esté instalado y actualizado: {error_mapa}")
+                    st.error(f"No se pudieron generar las visualizaciones. Verifica que Plotly esté instalado y actualizado: {error_mapa}")
 
 except Exception as e:
     st.error(f"Error al procesar el dashboard: {e}")
