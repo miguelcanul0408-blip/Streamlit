@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -68,9 +67,42 @@ try:
             top_prod_qty = df_filtrado.groupby('Product Name')['Quantity'].sum().reset_index().sort_values(by='Quantity', ascending=False).head(10)
             fig4, ax4 = plt.subplots()
             # Acortar nombres largos de productos para la visualización
-            top_prod_qty['Product Name Short'] = top_prod_qty['Product Name'].str[:30] + '...'
+            top_prod_qty['Product Name Short'] = top_prod_qty['Product Name'].apply(
+                lambda nombre: nombre[:30] + '...' if len(nombre) > 30 else nombre
+            )
             sns.barplot(data=top_prod_qty, x='Quantity', y='Product Name Short', palette='rocket', ax=ax4)
             st.pyplot(fig4)
+
+        st.subheader("Top 10 productos más vendidos por categoría")
+        if df_filtrado.empty:
+            st.info("Selecciona al menos una categoría para ver los productos más vendidos.")
+        else:
+            productos_categoria = (
+                df_filtrado.groupby(['Category', 'Product Name'], as_index=False)['Quantity']
+                .sum()
+                .sort_values(['Category', 'Quantity'], ascending=[True, False])
+                .groupby('Category', group_keys=False)
+                .head(10)
+            )
+            productos_categoria['Product Name Short'] = productos_categoria['Product Name'].apply(
+                lambda nombre: nombre[:30] + '...' if len(nombre) > 30 else nombre
+            )
+            grafica_categoria = sns.catplot(
+                data=productos_categoria,
+                kind='bar',
+                x='Quantity',
+                y='Product Name Short',
+                col='Category',
+                col_wrap=2,
+                sharex=False,
+                height=4,
+                aspect=1.3,
+                palette='rocket'
+            )
+            grafica_categoria.set_axis_labels('Cantidad vendida', 'Producto')
+            grafica_categoria.set_titles('{col_name}')
+            st.pyplot(grafica_categoria.figure)
+            plt.close(grafica_categoria.figure)
 
     with tab3:
         st.header("Análisis Financiero de Descuentos")
